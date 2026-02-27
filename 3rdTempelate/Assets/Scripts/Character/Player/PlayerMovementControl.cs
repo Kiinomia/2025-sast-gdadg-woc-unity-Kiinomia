@@ -29,10 +29,14 @@ namespace Character.Player
         
         //目标朝向
         private Vector3 _characterTargetDirection;
-        
+        public GameObject attackVFXPrefab;
         protected override void Awake()
         {
+            currentHealth = maxHealth;
             base.Awake();
+            _audioSource = GetComponent<AudioSource>();
+            if (_audioSource == null)
+                _audioSource = gameObject.AddComponent<AudioSource>();
             _mainCamera = Camera.main.transform;
         }
 
@@ -40,8 +44,59 @@ namespace Character.Player
         {
             base.Update();
             OnLockUpdateXY();
-        }
+            if (UnityEngine.Input.GetKeyDown(KeyCode.H))
+            {
+                TakeDamage(10f);
+            }
 
+            if (UnityEngine.Input.GetButtonDown("Fire1"))
+            {
+                Animator.SetTrigger("Attack3N");
+            }
+           
+        }
+        public void ATK()
+        {
+            float attackRadius = 2f;
+            Collider[] hitColliders = Physics.OverlapSphere(transform.position, attackRadius);
+            Debug.Log("ATK triggered, detected " + hitColliders.Length + " colliders.");
+        }
+        public void PlayVFX()
+        {
+            if (attackVFXPrefab != null)
+            {
+                GameObject vfx = Instantiate(attackVFXPrefab, transform.position, transform.rotation);
+                Destroy(vfx, 2f);
+            }
+            else
+            {
+                Debug.LogWarning("Attack VFX Prefab is not assigned!");
+            }
+        }
+        public AudioClip footstepSound;
+        private AudioSource _audioSource;
+        public void FootStep()
+        {
+            Debug.Log("FootStep event triggered");
+            if (footstepSound != null && _audioSource != null)
+            {
+                _audioSource.PlayOneShot(footstepSound);
+            }
+        }
+        public float maxHealth = 100f;      // 最大血量
+        public float currentHealth;         // 当前血量
+        public UnityEngine.UI.Slider healthSlider; // 血条UI引用
+        public void TakeDamage(float damage)
+        {
+            currentHealth -= damage;
+            if (currentHealth < 0) currentHealth = 0;
+            UpdateHealthUI();
+        }
+        private void UpdateHealthUI()
+        {
+            if (healthSlider != null)
+                healthSlider.value = currentHealth / maxHealth;
+        }
         private void LateUpdate()
         {
 
@@ -100,7 +155,23 @@ namespace Character.Player
         private void UpdateAnimator()
         {
             if(!CharacterIsOnGround) return;
-
+            if (CharacterIsOnGround && Animator.GetBool(AnimationID.HasInput))
+            {
+                _nextStepTime -= Time.deltaTime;
+                if (_nextStepTime <= 0f)
+                {
+                    float stepInterval = Animator.GetBool(AnimationID.Run) ? fastFootTime : slowFootTime;
+                    if (stepInterval > 0f)
+                    {
+                        FootStep();
+                        _nextStepTime = stepInterval;
+                    }
+                }
+            }
+            else
+            {
+                _nextStepTime = 0f;
+            }
             Animator.SetBool(AnimationID.HasInput, GameInputManager.MainInstance.Movement != Vector2.zero);
             
             if (Animator.GetBool(AnimationID.HasInput))
